@@ -1,0 +1,18 @@
+{
+  "name": "deteccion-anomalia",
+  "version": "1.0.0",
+  "description": "Sistema de detección de anomalías de tráfico de red",
+  "main": "scripts/flow.js",
+  "dependencies": {
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0",
+    "commander": "^11.1.0"
+  },
+  "scripts": {
+    "process-pcap": "node scripts/flow.js",
+    "start": "node scripts/flow.js"
+  },
+  "keywords": ["network", "traffic", "anomaly", "detection", "security"],
+  "author": "Sistema de Detección de Anomalías",
+  "license": "MIT"
+}
