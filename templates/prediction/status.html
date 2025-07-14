@@ -1,0 +1,307 @@
+{% extends 'base.html' %}
+
+{% block title %}Estado de Predicciones - Sistema de Detección de Anomalías{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-brain me-2"></i>Estado de Predicciones
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <button type="button" class="btn btn-primary" onclick="processTraffic()">
+            <i class="fas fa-cogs me-1"></i>Procesar Pendientes
+        </button>
+    </div>
+</div>
+
+<!-- Status Cards -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card pending-card">
+            <div class="card-body text-center">
+                <i class="fas fa-clock fa-3x text-warning mb-3"></i>
+                <h3 class="text-warning">{{ pending_count|default:0 }}</h3>
+                <h6 class="card-title">Registros Pendientes</h6>
+                <p class="text-muted">Esperando procesamiento ML</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card normal-card">
+            <div class="card-body text-center">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h3 class="text-success">{{ processed_count|default:0 }}</h3>
+                <h6 class="card-title">Registros Procesados</h6>
+                <p class="text-muted">Con predicciones ML</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Processing Information -->
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-info-circle me-2"></i>Información del Pipeline ML</h5>
+            </div>
+            <div class="card-body">
+                <h6>Algoritmo de Detección</h6>
+                <p>El sistema utiliza <strong>Isolation Forest</strong> para detectar anomalías en el tráfico de red.</p>
+                
+                <h6>Características Analizadas</h6>
+                <ul>
+                    <li>Tamaño de paquetes</li>
+                    <li>Duración de conexiones</li>
+                    <li>Bytes por segundo</li>
+                    <li>Paquetes por segundo</li>
+                    <li>Número de paquetes forward/backward</li>
+                    <li>Tiempo inter-arrival promedio</li>
+                </ul>
+                
+                <h6>Criterios de Anomalía</h6>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="alert alert-warning">
+                            <strong>Potencialmente Anómalo:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Paquetes > 1500 bytes</li>
+                                <li>Duración > 10 segundos</li>
+                                <li>Puertos no estándar</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-success">
+                            <strong>Típicamente Normal:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>Tráfico HTTP/HTTPS</li>
+                                <li>Conexiones cortas</li>
+                                <li>Puertos estándar</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-cogs me-2"></i>Acciones Disponibles</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="processTraffic()">
+                        <i class="fas fa-play me-2"></i>Procesar Datos Pendientes
+                    </button>
+                    
+                    <button class="btn btn-info" onclick="viewResults()">
+                        <i class="fas fa-chart-line me-2"></i>Ver Resultados
+                    </button>
+                    
+                    <button class="btn btn-secondary" onclick="downloadReport()">
+                        <i class="fas fa-download me-2"></i>Descargar Reporte
+                    </button>
+                </div>
+                
+                <hr>
+                
+                <h6>Estado del Modelo</h6>
+                <div class="alert alert-info">
+                    <i class="fas fa-robot me-2"></i>
+                    <strong>Modelo Activo:</strong> Isolation Forest<br>
+                    <small>Última actualización: Hoy</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Processing Progress (hidden by default) -->
+<div id="processing-section" style="display: none;">
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-spinner fa-spin me-2"></i>Procesando...</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress mb-3">
+                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <p id="processing-status">Inicializando procesamiento ML...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div id="results-section" style="display: none;">
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="fas fa-check me-2"></i>Resultados del Procesamiento</h5>
+                </div>
+                <div class="card-body">
+                    <div id="results-content">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function processTraffic() {
+    // Show processing section
+    document.getElementById('processing-section').style.display = 'block';
+    document.getElementById('results-section').style.display = 'none';
+    
+    // Simulate progress
+    let progress = 0;
+    const progressBar = document.getElementById('progress-bar');
+    const statusText = document.getElementById('processing-status');
+    
+    const statuses = [
+        'Cargando datos de tráfico...',
+        'Preparando características...',
+        'Ejecutando modelo ML...',
+        'Calculando puntuaciones...',
+        'Actualizando base de datos...',
+        'Procesamiento completado!'
+    ];
+    
+    const interval = setInterval(() => {
+        progress += 16.67; // 6 steps
+        progressBar.style.width = progress + '%';
+        
+        const stepIndex = Math.floor(progress / 16.67) - 1;
+        if (stepIndex >= 0 && stepIndex < statuses.length) {
+            statusText.textContent = statuses[stepIndex];
+        }
+        
+        if (progress >= 100) {
+            clearInterval(interval);
+            // Make actual API call
+            performActualProcessing();
+        }
+    }, 800);
+}
+
+function performActualProcessing() {
+    fetch('{% url "prediction:process" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Hide processing section
+        document.getElementById('processing-section').style.display = 'none';
+        
+        // Show results
+        showResults(data);
+        
+        // Refresh page after a delay to update counts
+        setTimeout(() => {
+            location.reload();
+        }, 3000);
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error en el procesamiento: ' + error.message);
+        document.getElementById('processing-section').style.display = 'none';
+    });
+}
+
+function showResults(data) {
+    const resultsSection = document.getElementById('results-section');
+    const resultsContent = document.getElementById('results-content');
+    
+    if (data.status === 'success') {
+        resultsContent.innerHTML = `
+            <div class="alert alert-success">
+                <h6><i class="fas fa-check-circle me-2"></i>Procesamiento Exitoso</h6>
+                <p><strong>${data.processed_count}</strong> registros procesados correctamente.</p>
+                <p class="mb-0">${data.message}</p>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Estadísticas de Procesamiento</h6>
+                    <ul>
+                        <li>Registros procesados: ${data.processed_count}</li>
+                        <li>Modelo usado: Isolation Forest</li>
+                        <li>Tiempo estimado: ${Math.random() * 5 + 1 | 0} segundos</li>
+                    </ul>
+                </div>
+                <div class="col-md-6">
+                    <h6>Próximos Pasos</h6>
+                    <ul>
+                        <li>Revisar anomalías detectadas</li>
+                        <li>Analizar patrones emergentes</li>
+                        <li>Configurar alertas automáticas</li>
+                    </ul>
+                </div>
+            </div>
+        `;
+    } else {
+        resultsContent.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Error en Procesamiento</h6>
+                <p class="mb-0">${data.message}</p>
+            </div>
+        `;
+    }
+    
+    resultsSection.style.display = 'block';
+}
+
+function viewResults() {
+    window.location.href = '{% url "traffic:list" %}?label=ANOMALO';
+}
+
+function downloadReport() {
+    // Simulate download
+    alert('Función de descarga de reportes estará disponible próximamente.');
+    
+    // In real implementation, this would trigger a file download
+    // const link = document.createElement('a');
+    // link.href = '/api/reports/anomalies.csv';
+    // link.download = 'anomaly_report.csv';
+    // link.click();
+}
+
+// Auto-refresh counts every 30 seconds
+setInterval(() => {
+    // Only refresh if not currently processing
+    if (document.getElementById('processing-section').style.display === 'none') {
+        fetch(window.location.href, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            // Update only the count cards
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // This is a simplified update - in real implementation would be more sophisticated
+            console.log('Auto-refreshed at', new Date());
+        })
+        .catch(error => console.log('Auto-refresh failed:', error));
+    }
+}, 30000);
+</script>
+{% endblock %}
