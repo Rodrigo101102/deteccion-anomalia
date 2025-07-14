@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio - Sistema de Detección de Anomalías{% endblock %}
+
+{% block content %}
+<div class="jumbotron bg-primary text-white text-center py-5 mb-4 rounded">
+    <div class="container">
+        <h1 class="display-4">
+            <i class="fas fa-shield-alt me-3"></i>
+            Sistema de Detección de Anomalías de Tráfico de Red
+        </h1>
+        <p class="lead">
+            Plataforma avanzada para captura, análisis y detección automática de anomalías en el tráfico de red
+        </p>
+        {% if not user.is_authenticated %}
+            <a class="btn btn-light btn-lg mt-3" href="{% url 'core:login' %}" role="button">
+                <i class="fas fa-sign-in-alt me-2"></i>Iniciar Sesión
+            </a>
+        {% else %}
+            <a class="btn btn-light btn-lg mt-3" href="{% url 'dashboard:index' %}" role="button">
+                <i class="fas fa-tachometer-alt me-2"></i>Ir al Dashboard
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="container">
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-network-wired fa-3x text-primary mb-3"></i>
+                    <h5 class="card-title">Captura Automática</h5>
+                    <p class="card-text">
+                        Sistema automatizado de captura de tráfico de red que se inicia después de 20 segundos 
+                        del acceso al sistema.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-brain fa-3x text-success mb-3"></i>
+                    <h5 class="card-title">Machine Learning</h5>
+                    <p class="card-text">
+                        Algoritmos avanzados de detección de anomalías basados en Machine Learning 
+                        para identificar tráfico sospechoso.
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-chart-line fa-3x text-warning mb-3"></i>
+                    <h5 class="card-title">Dashboard Interactivo</h5>
+                    <p class="card-text">
+                        Panel de control completo con visualizaciones en tiempo real, 
+                        filtros avanzados y alertas automáticas.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-5">
+        <div class="col-md-6">
+            <h3><i class="fas fa-cogs me-2"></i>Características Técnicas</h3>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">
+                    <i class="fas fa-check text-success me-2"></i>
+                    Pipeline automatizado de procesamiento
+                </li>
+                <li class="list-group-item">
+                    <i class="fas fa-check text-success me-2"></i>
+                    Base de datos PostgreSQL optimizada
+                </li>
+                <li class="list-group-item">
+                    <i class="fas fa-check text-success me-2"></i>
+                    Integración con Wireshark y Flowmeter
+                </li>
+                <li class="list-group-item">
+                    <i class="fas fa-check text-success me-2"></i>
+                    Procesamiento asíncrono con Celery
+                </li>
+                <li class="list-group-item">
+                    <i class="fas fa-check text-success me-2"></i>
+                    API REST para integraciones externas
+                </li>
+            </ul>
+        </div>
+        
+        <div class="col-md-6">
+            <h3><i class="fas fa-users me-2"></i>Control de Acceso</h3>
+            <div class="row">
+                <div class="col-6">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <i class="fas fa-user fa-2x text-info mb-2"></i>
+                            <h6>Usuario</h6>
+                            <small class="text-muted">Visualización de datos</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <i class="fas fa-user-shield fa-2x text-danger mb-2"></i>
+                            <h6>Administrador</h6>
+                            <small class="text-muted">Control total del sistema</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if not user.is_authenticated %}
+    <div class="row mt-5">
+        <div class="col-12 text-center">
+            <div class="alert alert-info">
+                <h5><i class="fas fa-info-circle me-2"></i>¿Necesitas acceso?</h5>
+                <p class="mb-0">
+                    Contacta con el administrador del sistema para obtener credenciales de acceso.
+                    El sistema requiere autenticación para proteger los datos sensibles de red.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

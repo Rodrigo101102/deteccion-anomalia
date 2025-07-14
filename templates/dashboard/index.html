@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Sistema de Detección de Anomalías{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-tachometer-alt me-2"></i>Dashboard Principal
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-download me-1"></i>Exportar
+            </button>
+        </div>
+        <button type="button" class="btn btn-sm btn-primary" onclick="location.reload()">
+            <i class="fas fa-sync-alt me-1"></i>Actualizar
+        </button>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stats-card normal-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">Tráfico Normal</h6>
+                        <h3 class="text-success">{{ normal_traffic|default:0 }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-check-circle fa-2x text-success"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    {{ anomaly_percentage|floatformat:1 }}% del total
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stats-card anomaly-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">Tráfico Anómalo</h6>
+                        <h3 class="text-danger">{{ anomalous_traffic|default:0 }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Últimas 24h: {{ recent_anomalies|default:0 }}
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stats-card pending-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">Pendiente</h6>
+                        <h3 class="text-warning">{{ pending_traffic|default:0 }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-clock fa-2x text-warning"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Por procesar
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stats-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="card-title text-muted">Total Registros</h6>
+                        <h3 class="text-primary">{{ total_traffic|default:0 }}</h3>
+                    </div>
+                    <div class="align-self-center">
+                        <i class="fas fa-database fa-2x text-primary"></i>
+                    </div>
+                </div>
+                <small class="text-muted">
+                    Sesiones activas: {{ active_sessions|default:0 }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar me-2"></i>Estadísticas por Protocolo</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="protocolChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie me-2"></i>Distribución de Tráfico</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="trafficDistributionChart" width="200" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Anomalies -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-exclamation-triangle me-2"></i>Últimas Anomalías Detectadas</h5>
+                <a href="{% url 'traffic:list' %}?label=ANOMALO" class="btn btn-sm btn-outline-danger">
+                    Ver Todas
+                </a>
+            </div>
+            <div class="card-body">
+                {% if latest_anomalies %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>IP Origen</th>
+                                    <th>IP Destino</th>
+                                    <th>Protocolo</th>
+                                    <th>Tamaño</th>
+                                    <th>Duración</th>
+                                    <th>Fecha</th>
+                                    <th>Confianza</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for anomaly in latest_anomalies %}
+                                <tr>
+                                    <td>{{ anomaly.src_ip }}:{{ anomaly.src_port }}</td>
+                                    <td>{{ anomaly.dst_ip }}:{{ anomaly.dst_port }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ anomaly.protocol }}</span>
+                                    </td>
+                                    <td>{{ anomaly.packet_size|default:"-" }} bytes</td>
+                                    <td>{{ anomaly.duration|floatformat:3 }}s</td>
+                                    <td>{{ anomaly.fecha_captura|date:"d/m/Y H:i" }}</td>
+                                    <td>
+                                        {% if anomaly.confidence_score %}
+                                            <span class="badge bg-info">
+                                                {{ anomaly.confidence_score|floatformat:2 }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-check-circle fa-3x mb-3"></i>
+                        <p>No se han detectado anomalías recientes</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Configuración de Chart.js
+Chart.defaults.color = '#6c757d';
+
+// Gráfico de protocolos
+const protocolCtx = document.getElementById('protocolChart').getContext('2d');
+const protocolChart = new Chart(protocolCtx, {
+    type: 'bar',
+    data: {
+        labels: [
+            {% for stat in protocol_stats %}
+                '{{ stat.protocol }}',
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Total',
+            data: [
+                {% for stat in protocol_stats %}
+                    {{ stat.count }},
+                {% endfor %}
+            ],
+            backgroundColor: 'rgba(54, 162, 235, 0.8)'
+        }, {
+            label: 'Anomalías',
+            data: [
+                {% for stat in protocol_stats %}
+                    {{ stat.anomalies }},
+                {% endfor %}
+            ],
+            backgroundColor: 'rgba(255, 99, 132, 0.8)'
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+
+// Gráfico de distribución
+const distributionCtx = document.getElementById('trafficDistributionChart').getContext('2d');
+const distributionChart = new Chart(distributionCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Normal', 'Anómalo', 'Pendiente'],
+        datasets: [{
+            data: [
+                {{ normal_traffic|default:0 }},
+                {{ anomalous_traffic|default:0 }},
+                {{ pending_traffic|default:0 }}
+            ],
+            backgroundColor: [
+                'rgba(40, 167, 69, 0.8)',
+                'rgba(220, 53, 69, 0.8)',
+                'rgba(255, 193, 7, 0.8)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}

@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block title %}Lista de Tráfico - Sistema de Detección de Anomalías{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-list me-2"></i>Tráfico de Red
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button type="button" class="btn btn-sm btn-success" onclick="startCapture()">
+                <i class="fas fa-play me-1"></i>Iniciar Captura
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" onclick="stopCapture()">
+                <i class="fas fa-stop me-1"></i>Detener Captura
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label for="protocol" class="form-label">Protocolo</label>
+                <select class="form-select" id="protocol" name="protocol">
+                    <option value="">Todos</option>
+                    {% for protocol_choice in protocols %}
+                        <option value="{{ protocol_choice.0 }}" 
+                                {% if current_filters.protocol == protocol_choice.0 %}selected{% endif %}>
+                            {{ protocol_choice.1 }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="label" class="form-label">Estado</label>
+                <select class="form-select" id="label" name="label">
+                    <option value="">Todos</option>
+                    {% for label_choice in labels %}
+                        <option value="{{ label_choice.0 }}"
+                                {% if current_filters.label == label_choice.0 %}selected{% endif %}>
+                            {{ label_choice.1 }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label for="date" class="form-label">Fecha</label>
+                <input type="date" class="form-control" id="date" name="date" 
+                       value="{{ current_filters.date|default:'' }}">
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-filter me-1"></i>Filtrar
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Traffic Table -->
+<div class="card">
+    <div class="card-body">
+        {% if page_obj %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>IP Origen</th>
+                            <th>IP Destino</th>
+                            <th>Protocolo</th>
+                            <th>Tamaño</th>
+                            <th>Duración</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for traffic in page_obj %}
+                        <tr>
+                            <td>{{ traffic.src_ip }}:{{ traffic.src_port }}</td>
+                            <td>{{ traffic.dst_ip }}:{{ traffic.dst_port }}</td>
+                            <td><span class="badge bg-secondary">{{ traffic.protocol }}</span></td>
+                            <td>{{ traffic.packet_size|default:"-" }} bytes</td>
+                            <td>{{ traffic.duration|floatformat:3 }}s</td>
+                            <td>
+                                {% if traffic.label == 'NORMAL' %}
+                                    <span class="badge badge-normal">Normal</span>
+                                {% elif traffic.label == 'ANOMALO' %}
+                                    <span class="badge badge-anomaly">Anómalo</span>
+                                {% else %}
+                                    <span class="badge badge-pending">Pendiente</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ traffic.fecha_captura|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+                <nav aria-label="Paginación">
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page=1">Primera</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+                            </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+                            </span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a>
+                            </li>
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Última</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center text-muted py-4">
+                <i class="fas fa-inbox fa-3x mb-3"></i>
+                <p>No hay datos de tráfico disponibles</p>
+                <button class="btn btn-primary" onclick="startCapture()">
+                    <i class="fas fa-play me-2"></i>Iniciar Primera Captura
+                </button>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function startCapture() {
+    fetch('{% url "traffic:start_capture" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('Captura iniciada exitosamente');
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error de conexión');
+    });
+}
+
+function stopCapture() {
+    fetch('{% url "traffic:stop_capture" %}', {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            alert('Captura detenida exitosamente');
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        alert('Error de conexión');
+    });
+}
+</script>
+{% endblock %}
