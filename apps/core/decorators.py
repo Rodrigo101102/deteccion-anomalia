@@ -17,7 +17,7 @@ def admin_required(view_func):
     @wraps(view_func)
     @login_required
     def _wrapped_view(request, *args, **kwargs):
-        if not request.user.role == 'admin':
+        if not hasattr(request.user, 'role') or request.user.role != 'admin':
             logger.warning(f"Acceso denegado a {request.user.username} en {request.path}")
             raise PermissionDenied("Se requieren permisos de administrador")
         return view_func(request, *args, **kwargs)
@@ -29,7 +29,8 @@ def analyst_required(view_func):
     @wraps(view_func)
     @login_required
     def _wrapped_view(request, *args, **kwargs):
-        if request.user.role not in ['admin', 'analyst']:
+        user_role = getattr(request.user, 'role', 'viewer')
+        if user_role not in ['admin', 'analyst']:
             logger.warning(f"Acceso denegado a {request.user.username} en {request.path}")
             raise PermissionDenied("Se requieren permisos de analista")
         return view_func(request, *args, **kwargs)
@@ -41,7 +42,8 @@ def operator_required(view_func):
     @wraps(view_func)
     @login_required
     def _wrapped_view(request, *args, **kwargs):
-        if request.user.role not in ['admin', 'analyst', 'operator']:
+        user_role = getattr(request.user, 'role', 'viewer')
+        if user_role not in ['admin', 'analyst', 'operator']:
             logger.warning(f"Acceso denegado a {request.user.username} en {request.path}")
             raise PermissionDenied("Se requieren permisos de operador")
         return view_func(request, *args, **kwargs)

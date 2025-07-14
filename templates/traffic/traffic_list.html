@@ -1,0 +1,392 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Lista de Tráfico - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.traffic-card {
+    border-left: 4px solid #17a2b8;
+}
+.label-badge {
+    font-size: 0.8rem;
+}
+.ip-address {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+.port-number {
+    font-weight: bold;
+    color: #6c757d;
+}
+.filter-card {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+.stats-row {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-list"></i> Tráfico de Red</h1>
+    <div>
+        <a href="{% url 'traffic:pipeline' %}" class="btn btn-outline-secondary me-2">
+            <i class="fas fa-stream"></i> Pipeline
+        </a>
+        <a href="{% url 'traffic:export' %}" class="btn btn-outline-success">
+            <i class="fas fa-download"></i> Exportar
+        </a>
+    </div>
+</div>
+
+<!-- Estadísticas rápidas -->
+<div class="stats-row">
+    <div class="row text-center">
+        <div class="col-md-3">
+            <div class="h4 text-primary">{{ stats.total|default:0 }}</div>
+            <small class="text-muted">Total Registros</small>
+        </div>
+        <div class="col-md-3">
+            <div class="h4 text-danger">{{ stats.anomalous|default:0 }}</div>
+            <small class="text-muted">Anomalías</small>
+        </div>
+        <div class="col-md-3">
+            <div class="h4 text-success">{{ stats.normal|default:0 }}</div>
+            <small class="text-muted">Normales</small>
+        </div>
+        <div class="col-md-3">
+            <div class="h4 text-warning">{{ stats.unprocessed|default:0 }}</div>
+            <small class="text-muted">Sin Procesar</small>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card filter-card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-filter"></i> Filtros
+                    <button class="btn btn-sm btn-outline-secondary float-end" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </h6>
+            </div>
+            <div class="collapse" id="filterCollapse">
+                <div class="card-body">
+                    <form method="get" class="row g-3">
+                        <div class="col-md-2">
+                            <label for="label" class="form-label">Etiqueta</label>
+                            <select name="label" id="label" class="form-select">
+                                <option value="">Todas</option>
+                                <option value="NORMAL" {% if request.GET.label == 'NORMAL' %}selected{% endif %}>Normal</option>
+                                <option value="ANOMALO" {% if request.GET.label == 'ANOMALO' %}selected{% endif %}>Anómalo</option>
+                                <option value="SOSPECHOSO" {% if request.GET.label == 'SOSPECHOSO' %}selected{% endif %}>Sospechoso</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="protocol" class="form-label">Protocolo</label>
+                            <select name="protocol" id="protocol" class="form-select">
+                                <option value="">Todos</option>
+                                <option value="TCP" {% if request.GET.protocol == 'TCP' %}selected{% endif %}>TCP</option>
+                                <option value="UDP" {% if request.GET.protocol == 'UDP' %}selected{% endif %}>UDP</option>
+                                <option value="HTTP" {% if request.GET.protocol == 'HTTP' %}selected{% endif %}>HTTP</option>
+                                <option value="HTTPS" {% if request.GET.protocol == 'HTTPS' %}selected{% endif %}>HTTPS</option>
+                                <option value="DNS" {% if request.GET.protocol == 'DNS' %}selected{% endif %}>DNS</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="src_ip" class="form-label">IP Origen</label>
+                            <input type="text" name="src_ip" id="src_ip" class="form-control" 
+                                   value="{{ request.GET.src_ip }}" placeholder="192.168.1.1">
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="dst_ip" class="form-label">IP Destino</label>
+                            <input type="text" name="dst_ip" id="dst_ip" class="form-control" 
+                                   value="{{ request.GET.dst_ip }}" placeholder="192.168.1.1">
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label for="date_from" class="form-label">Desde</label>
+                            <input type="date" name="date_from" id="date_from" class="form-control" 
+                                   value="{{ request.GET.date_from }}">
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <label class="form-label">&nbsp;</label>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-search"></i> Filtrar
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    {% if request.GET %}
+                        <div class="mt-2">
+                            <a href="{% url 'traffic:list' %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-times"></i> Limpiar Filtros
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de tráfico -->
+<div class="row">
+    <div class="col-12">
+        <div class="card traffic-card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-network-wired"></i> Registros de Tráfico
+                    {% if traffic_data %}
+                        <span class="badge bg-primary">{{ traffic_data|length }} de {{ page_obj.paginator.count }}</span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if traffic_data %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Flujo</th>
+                                    <th>Protocolo</th>
+                                    <th>Tamaño</th>
+                                    <th>Duración</th>
+                                    <th>Etiqueta</th>
+                                    <th>Confianza</th>
+                                    <th>Fecha</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for traffic in traffic_data %}
+                                    <tr {% if traffic.label == 'ANOMALO' %}class="table-danger"{% elif traffic.label == 'SOSPECHOSO' %}class="table-warning"{% endif %}>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% if traffic.traffic_direction == 'SALIENTE' %}
+                                                    <i class="fas fa-arrow-right text-warning me-2"></i>
+                                                {% elif traffic.traffic_direction == 'ENTRANTE' %}
+                                                    <i class="fas fa-arrow-left text-info me-2"></i>
+                                                {% else %}
+                                                    <i class="fas fa-arrows-alt-h text-secondary me-2"></i>
+                                                {% endif %}
+                                                <div>
+                                                    <div>
+                                                        <span class="ip-address">{{ traffic.src_ip }}</span>:<span class="port-number">{{ traffic.src_port }}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span class="ip-address">{{ traffic.dst_ip }}</span>:<span class="port-number">{{ traffic.dst_port }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ traffic.protocol }}</span>
+                                        </td>
+                                        <td>
+                                            {{ traffic.packet_size|filesizeformat }}
+                                        </td>
+                                        <td>
+                                            {% if traffic.duration > 0 %}
+                                                {{ traffic.duration|floatformat:2 }}s
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if traffic.label %}
+                                                {% if traffic.label == 'NORMAL' %}
+                                                    <span class="badge bg-success label-badge">{{ traffic.label }}</span>
+                                                {% elif traffic.label == 'ANOMALO' %}
+                                                    <span class="badge bg-danger label-badge">{{ traffic.label }}</span>
+                                                {% elif traffic.label == 'SOSPECHOSO' %}
+                                                    <span class="badge bg-warning label-badge">{{ traffic.label }}</span>
+                                                {% else %}
+                                                    <span class="badge bg-info label-badge">{{ traffic.label }}</span>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="badge bg-light text-dark label-badge">Sin Procesar</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if traffic.confidence_score %}
+                                                <div class="progress" style="width: 60px; height: 15px;">
+                                                    <div class="progress-bar 
+                                                        {% if traffic.confidence_score >= 0.8 %}bg-success
+                                                        {% elif traffic.confidence_score >= 0.6 %}bg-warning
+                                                        {% else %}bg-danger{% endif %}" 
+                                                         style="width: {{ traffic.confidence_score|mul:100 }}%"></div>
+                                                </div>
+                                                <small class="text-muted">{{ traffic.confidence_score|floatformat:2 }}</small>
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small>{{ traffic.fecha_captura|date:"d/m/Y H:i" }}</small>
+                                        </td>
+                                        <td>
+                                            <a href="{% url 'traffic:detail' traffic.pk %}" class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación -->
+                    {% if page_obj.has_other_pages %}
+                        <nav aria-label="Paginación">
+                            <ul class="pagination justify-content-center">
+                                {% if page_obj.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page=1{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                                            <i class="fas fa-angle-double-left"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                                            <i class="fas fa-angle-left"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for num in page_obj.paginator.page_range %}
+                                    {% if page_obj.number == num %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ num }}</span>
+                                        </li>
+                                    {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?page={{ num }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">{{ num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if page_obj.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                                            <i class="fas fa-angle-right"></i>
+                                        </a>
+                                    </li>
+                                    <li class="page-item">
+                                        <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET %}&{{ request.GET.urlencode }}{% endif %}">
+                                            <i class="fas fa-angle-double-right"></i>
+                                        </a>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                        
+                        <div class="text-center text-muted">
+                            <small>
+                                Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }} 
+                                ({{ page_obj.paginator.count }} registros total)
+                            </small>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-search fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">No se encontraron registros</h4>
+                        {% if request.GET %}
+                            <p class="text-muted">No hay registros que coincidan con los filtros aplicados.</p>
+                            <a href="{% url 'traffic:list' %}" class="btn btn-primary">
+                                <i class="fas fa-times"></i> Limpiar Filtros
+                            </a>
+                        {% else %}
+                            <p class="text-muted">Aún no hay datos de tráfico capturados.</p>
+                            <div class="mt-3">
+                                <a href="{% url 'traffic:capture_management' %}" class="btn btn-primary me-2">
+                                    <i class="fas fa-play"></i> Iniciar Captura
+                                </a>
+                                <a href="{% url 'traffic:csv_processing' %}" class="btn btn-outline-warning">
+                                    <i class="fas fa-file-csv"></i> Procesar CSV
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Información adicional -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:analytics' %}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-chart-line"></i><br>
+                            <small>Ver Analíticas</small>
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:capture_sessions' %}" class="btn btn-outline-info w-100">
+                            <i class="fas fa-history"></i><br>
+                            <small>Historial Capturas</small>
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:ml_prediction' %}" class="btn btn-outline-success w-100">
+                            <i class="fas fa-brain"></i><br>
+                            <small>Predicciones ML</small>
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:export' %}" class="btn btn-outline-secondary w-100">
+                            <i class="fas fa-download"></i><br>
+                            <small>Exportar Datos</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Auto-actualizar cada 30 segundos si no hay filtros aplicados
+    {% if not request.GET %}
+    setInterval(function() {
+        console.log('Auto-refresh disponible...');
+        // Opcional: agregar auto-refresh real
+    }, 30000);
+    {% endif %}
+    
+    // Mostrar/ocultar filtros automáticamente si hay parámetros GET
+    {% if request.GET %}
+    $('#filterCollapse').addClass('show');
+    {% endif %}
+});
+
+// Template filter personalizado para multiplicar
+Object.defineProperty(Number.prototype, 'mul', {
+    value: function(factor) {
+        return this * factor;
+    }
+});
+</script>
+{% endblock %}
