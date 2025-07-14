@@ -1,0 +1,347 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Gestión de Capturas - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.capture-card {
+    border-left: 4px solid #28a745;
+}
+.interface-selector {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+}
+.duration-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-play-circle"></i> Gestión de Capturas</h1>
+    <div>
+        <a href="{% url 'traffic:pipeline' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Pipeline
+        </a>
+    </div>
+</div>
+
+<!-- Formulario de nueva captura -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card capture-card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Iniciar Nueva Captura</h5>
+            </div>
+            <div class="card-body">
+                <form id="captureForm" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="start_capture">
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="interface-selector mb-3">
+                                <label for="interface" class="form-label">
+                                    <i class="fas fa-network-wired"></i> Interfaz de Red
+                                </label>
+                                <select class="form-select" id="interface" name="interface" required>
+                                    {% for interface in interfaces_disponibles %}
+                                        <option value="{{ interface }}" {% if interface == 'eth0' %}selected{% endif %}>
+                                            {{ interface }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Selecciona la interfaz de red para capturar</small>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <i class="fas fa-clock"></i> Duración de Captura
+                            </label>
+                            <div class="duration-grid">
+                                {% for value, label in duraciones_captura %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="duration" 
+                                               id="duration{{ value }}" value="{{ value }}" 
+                                               {% if value == 300 %}checked{% endif %}>
+                                        <label class="form-check-label" for="duration{{ value }}">
+                                            {{ label }}
+                                        </label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted">
+                            <small>
+                                <i class="fas fa-info-circle"></i>
+                                La captura se ejecutará en segundo plano. Puedes cerrar esta página.
+                            </small>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-lg" id="startCaptureBtn">
+                            <i class="fas fa-play"></i> Iniciar Captura
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Estado actual -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle"></i> Estado Actual</h6>
+            </div>
+            <div class="card-body">
+                <div class="text-center">
+                    <div class="mb-3">
+                        <i class="fas fa-chart-line fa-3x text-primary"></i>
+                    </div>
+                    <h6>Capturas Totales</h6>
+                    <div class="row text-center">
+                        <div class="col-4">
+                            <div class="h4 text-success">{{ capturas_recientes|length }}</div>
+                            <small class="text-muted">Recientes</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h4 text-warning" id="activeCapturesCount">0</div>
+                            <small class="text-muted">Activas</small>
+                        </div>
+                        <div class="col-4">
+                            <div class="h4 text-danger" id="failedCapturesCount">0</div>
+                            <small class="text-muted">Fallidas</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-grid">
+                    <a href="{% url 'traffic:capture_sessions' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-history"></i> Ver Historial Completo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Capturas recientes -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-list"></i> Capturas Recientes</h5>
+            </div>
+            <div class="card-body">
+                {% if capturas_recientes %}
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID Sesión</th>
+                                    <th>Interfaz</th>
+                                    <th>Duración</th>
+                                    <th>Estado</th>
+                                    <th>Iniciado</th>
+                                    <th>Paquetes</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for captura in capturas_recientes %}
+                                    <tr>
+                                        <td>
+                                            <code>{{ captura.session_id }}</code>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ captura.interface }}</span>
+                                        </td>
+                                        <td>{{ captura.duration }}s</td>
+                                        <td>
+                                            {% if captura.status == 'RUNNING' %}
+                                                <span class="badge bg-warning">En Ejecución</span>
+                                            {% elif captura.status == 'COMPLETED' %}
+                                                <span class="badge bg-success">Completada</span>
+                                            {% elif captura.status == 'FAILED' %}
+                                                <span class="badge bg-danger">Fallida</span>
+                                            {% elif captura.status == 'CANCELLED' %}
+                                                <span class="badge bg-secondary">Cancelada</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-dark">{{ captura.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if captura.started_at %}
+                                                {{ captura.started_at|date:"d/m/Y H:i" }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if captura.packets_captured %}
+                                                {{ captura.packets_captured|floatformat:0 }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if captura.status == 'RUNNING' %}
+                                                <button class="btn btn-sm btn-danger" 
+                                                        onclick="detenerCaptura('{{ captura.session_id }}')">
+                                                    <i class="fas fa-stop"></i> Detener
+                                                </button>
+                                            {% elif captura.pcap_file_path %}
+                                                <button class="btn btn-sm btn-info" disabled>
+                                                    <i class="fas fa-download"></i> PCAP
+                                                </button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No hay capturas recientes</p>
+                        <p class="text-muted">Inicia tu primera captura usando el formulario anterior</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Acción</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirmAction">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    $('#captureForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const $btn = $('#startCaptureBtn');
+        const originalText = $btn.html();
+        
+        // Deshabilitar botón y mostrar loading
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Iniciando...');
+        
+        $.ajax({
+            url: '{% url "traffic:capture_management" %}',
+            method: 'POST',
+            data: $(this).serialize(),
+            success: function(response) {
+                if (response.success) {
+                    // Mostrar mensaje de éxito
+                    showAlert('success', response.message);
+                    
+                    // Recargar página después de 2 segundos
+                    setTimeout(function() {
+                        location.reload();
+                    }, 2000);
+                } else {
+                    showAlert('danger', response.error || 'Error desconocido');
+                    $btn.prop('disabled', false).html(originalText);
+                }
+            },
+            error: function(xhr) {
+                let errorMsg = 'Error de conexión';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showAlert('danger', errorMsg);
+                $btn.prop('disabled', false).html(originalText);
+            }
+        });
+    });
+});
+
+function detenerCaptura(sessionId) {
+    $('#confirmMessage').text('¿Estás seguro que deseas detener la captura ' + sessionId + '?');
+    $('#confirmAction').off('click').on('click', function() {
+        $.ajax({
+            url: '{% url "traffic:stop_capture" %}',
+            method: 'POST',
+            data: {
+                'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val(),
+                'session_id': sessionId
+            },
+            success: function(response) {
+                if (response.success) {
+                    showAlert('success', 'Captura detenida exitosamente');
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showAlert('danger', response.error || 'Error deteniendo captura');
+                }
+                $('#confirmModal').modal('hide');
+            },
+            error: function(xhr) {
+                let errorMsg = 'Error de conexión';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                showAlert('danger', errorMsg);
+                $('#confirmModal').modal('hide');
+            }
+        });
+    });
+    $('#confirmModal').modal('show');
+}
+
+function showAlert(type, message) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // Insertar al inicio del contenido
+    $('main .container-fluid').prepend(alertHtml);
+    
+    // Auto-remover después de 5 segundos
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 5000);
+}
+
+// Auto-actualizar contadores cada 30 segundos
+setInterval(function() {
+    // Aquí puedes agregar una llamada AJAX para actualizar solo los contadores
+    console.log('Actualizando contadores...');
+}, 30000);
+</script>
+{% endblock %}

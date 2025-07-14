@@ -434,3 +434,267 @@ def limpiar_registros_antiguos(dias_retencion=30):
     
     logger.info(f"Limpieza completada: {registros_eliminados[0]} registros eliminados")
     return registros_eliminados[0]
+
+
+def iniciar_captura_web(interface='eth0', duration=300, user=None):
+    """
+    Inicia captura de tráfico desde la interfaz web
+    Wrapper para el script de captura
+    """
+    try:
+        # Importar aquí para evitar dependencias circulares
+        import sys
+        import os
+        from pathlib import Path
+        
+        # Añadir scripts al path
+        scripts_path = str(Path(__file__).parent.parent.parent / 'scripts')
+        if scripts_path not in sys.path:
+            sys.path.append(scripts_path)
+        
+        from scripts.captura_wireshark import CapturaTrafico
+        
+        # Verificar si ya hay una captura activa
+        active_session = CaptureSession.objects.filter(status='RUNNING').first()
+        if active_session:
+            return {
+                'success': False,
+                'error': 'Ya hay una captura en curso',
+                'session_id': active_session.session_id
+            }
+        
+        # Crear instancia de captura
+        captura = CapturaTrafico(interface=interface, duration=duration)
+        
+        # Crear sesión en BD
+        session_id = generar_session_id()
+        capture_session = CaptureSession.objects.create(
+            session_id=session_id,
+            interface=interface,
+            duration=duration,
+            started_by=user,
+            status='PENDING'
+        )
+        
+        # Iniciar captura en segundo plano (simulación)
+        # En producción esto debería usar Celery o threading
+        import threading
+        
+        def ejecutar_captura():
+            try:
+                capture_session.start_capture()
+                resultado = captura.capturar_trafico()
+                if resultado:
+                    capture_session.complete_capture()
+                else:
+                    capture_session.fail_capture("Error en captura")
+            except Exception as e:
+                capture_session.fail_capture(str(e))
+        
+        # Ejecutar en hilo separado para no bloquear la web
+        thread = threading.Thread(target=ejecutar_captura)
+        thread.daemon = True
+        thread.start()
+        
+        return {
+            'success': True,
+            'session_id': session_id,
+            'message': 'Captura iniciada exitosamente'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error iniciando captura web: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def procesar_csv_web(csv_file_path=None):
+    """
+    Procesa archivos CSV desde la interfaz web
+    Wrapper para el script de procesamiento
+    """
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Añadir scripts al path
+        scripts_path = str(Path(__file__).parent.parent.parent / 'scripts')
+        if scripts_path not in sys.path:
+            sys.path.append(scripts_path)
+        
+        from scripts.procesar_csv import ProcesadorCSV
+        
+        # Crear procesador
+        procesador = ProcesadorCSV()
+        
+        if csv_file_path:
+            # Procesar archivo específico
+            registros = procesador.procesar_archivo_csv(os.path.basename(csv_file_path))
+            resultado = {
+                'procesados': 1 if registros > 0 else 0,
+                'registros_totales': registros,
+                'errores': 0 if registros > 0 else 1,
+                'archivo': csv_file_path
+            }
+        else:
+            # Procesar todos los archivos pendientes
+            resultado = procesador.procesar_todos_csv()
+        
+        return {
+            'success': True,
+            'resultado': resultado,
+            'message': f"Procesamiento completado: {resultado['registros_totales']} registros"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error procesando CSV web: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def ejecutar_predicciones_web(registros_ids=None, batch_size=1000):
+    """
+    Ejecuta predicciones ML desde la interfaz web
+    Wrapper para el script de predicción
+    """
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Añadir scripts al path
+        scripts_path = str(Path(__file__).parent.parent.parent / 'scripts')
+        if scripts_path not in sys.path:
+            sys.path.append(scripts_path)
+        
+        from scripts.predecir_csv import PredictorAnomalias
+        
+        # Crear predictor
+        predictor = PredictorAnomalias()
+        
+        # Verificar que el modelo esté disponible
+        if not predictor.validar_modelo():
+            return {
+                'success': False,
+                'error': 'Modelo ML no disponible. Entrenar modelo primero.'
+            }
+        
+        # Ejecutar predicciones
+        registros_procesados = predictor.predecir_anomalias(
+            registros_ids=registros_ids,
+            batch_size=batch_size
+        )
+        
+        return {
+            'success': True,
+            'registros_procesados': registros_procesados,
+            'message': f"Predicciones completadas: {registros_procesados} registros procesados"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error ejecutando predicciones web: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def entrenar_modelo_web():
+    """
+    Entrena nuevo modelo ML desde la interfaz web
+    """
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Añadir scripts al path
+        scripts_path = str(Path(__file__).parent.parent.parent / 'scripts')
+        if scripts_path not in sys.path:
+            sys.path.append(scripts_path)
+        
+        from scripts.predecir_csv import PredictorAnomalias
+        
+        # Crear predictor
+        predictor = PredictorAnomalias()
+        
+        # Entrenar modelo
+        exito = predictor.entrenar_modelo_inicial()
+        
+        if exito:
+            return {
+                'success': True,
+                'message': 'Modelo entrenado exitosamente'
+            }
+        else:
+            return {
+                'success': False,
+                'error': 'Error entrenando modelo'
+            }
+        
+    except Exception as e:
+        logger.error(f"Error entrenando modelo web: {e}")
+        return {
+            'success': False,
+            'error': str(e)
+        }
+
+
+def obtener_estado_pipeline():
+    """
+    Obtiene el estado actual del pipeline completo
+    """
+    try:
+        # Estado de capturas
+        capturas_activas = CaptureSession.objects.filter(status='RUNNING').count()
+        capturas_completadas = CaptureSession.objects.filter(status='COMPLETED').count()
+        capturas_fallidas = CaptureSession.objects.filter(status='FAILED').count()
+        
+        # Estado de procesamiento
+        registros_sin_procesar = TraficoRed.objects.filter(procesado=False).count()
+        registros_procesados = TraficoRed.objects.filter(procesado=True).count()
+        
+        # Estado de predicciones
+        anomalias_detectadas = TraficoRed.objects.filter(label='ANOMALO').count()
+        registros_normales = TraficoRed.objects.filter(label='NORMAL').count()
+        
+        # Archivos CSV pendientes
+        csv_dir = '/media/csv_files/'
+        archivos_csv_pendientes = 0
+        if os.path.exists(csv_dir):
+            archivos_csv_pendientes = len([
+                f for f in os.listdir(csv_dir) 
+                if f.endswith('.csv') and os.path.isfile(os.path.join(csv_dir, f))
+            ])
+        
+        return {
+            'captura': {
+                'activas': capturas_activas,
+                'completadas': capturas_completadas,
+                'fallidas': capturas_fallidas,
+                'estado': 'ACTIVA' if capturas_activas > 0 else 'INACTIVA'
+            },
+            'procesamiento': {
+                'sin_procesar': registros_sin_procesar,
+                'procesados': registros_procesados,
+                'archivos_csv_pendientes': archivos_csv_pendientes,
+                'estado': 'PENDIENTE' if archivos_csv_pendientes > 0 or registros_sin_procesar > 0 else 'COMPLETADO'
+            },
+            'prediccion': {
+                'anomalias': anomalias_detectadas,
+                'normales': registros_normales,
+                'total_clasificados': anomalias_detectadas + registros_normales,
+                'porcentaje_anomalias': (
+                    (anomalias_detectadas / (anomalias_detectadas + registros_normales) * 100)
+                    if (anomalias_detectadas + registros_normales) > 0 else 0
+                )
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error obteniendo estado del pipeline: {e}")
+        return {
+            'error': str(e)
+        }

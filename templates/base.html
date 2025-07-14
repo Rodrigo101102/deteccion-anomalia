@@ -35,10 +35,32 @@
                             <i class="fas fa-tachometer-alt"></i> Dashboard
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'dashboard:traffic_list' %}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-network-wired"></i> Tráfico
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{% url 'traffic:pipeline' %}">
+                                <i class="fas fa-stream"></i> Pipeline Completo
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'traffic:capture_management' %}">
+                                <i class="fas fa-play-circle"></i> Gestionar Capturas
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'traffic:csv_processing' %}">
+                                <i class="fas fa-file-csv"></i> Procesar CSV
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'traffic:ml_prediction' %}">
+                                <i class="fas fa-brain"></i> Predicciones ML
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{% url 'traffic:list' %}">
+                                <i class="fas fa-list"></i> Ver Todo el Tráfico
+                            </a></li>
+                            <li><a class="dropdown-item" href="{% url 'traffic:analytics' %}">
+                                <i class="fas fa-chart-line"></i> Analíticas
+                            </a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'dashboard:alerts' %}">

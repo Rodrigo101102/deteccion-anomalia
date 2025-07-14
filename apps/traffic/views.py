@@ -456,3 +456,194 @@ def traffic_realtime_data(request):
         
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def traffic_pipeline_view(request):
+    """Vista principal del pipeline de tráfico"""
+    from .utils import obtener_estado_pipeline, obtener_interfaces_disponibles
+    
+    context = {
+        'estado_pipeline': obtener_estado_pipeline(),
+        'interfaces_disponibles': obtener_interfaces_disponibles(),
+        'duraciones_captura': [
+            (60, '1 minuto'),
+            (300, '5 minutos'), 
+            (600, '10 minutos'),
+            (1800, '30 minutos'),
+            (3600, '1 hora')
+        ]
+    }
+    
+    return render(request, 'traffic/pipeline.html', context)
+
+
+@operator_required
+def capture_management_view(request):
+    """Vista de gestión de capturas"""
+    from .utils import obtener_interfaces_disponibles, iniciar_captura_web
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'start_capture':
+            interface = request.POST.get('interface', 'eth0')
+            duration = int(request.POST.get('duration', 300))
+            
+            resultado = iniciar_captura_web(
+                interface=interface,
+                duration=duration,
+                user=request.user
+            )
+            
+            if resultado['success']:
+                return JsonResponse({
+                    'success': True,
+                    'message': resultado['message'],
+                    'session_id': resultado['session_id']
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': resultado['error']
+                }, status=400)
+    
+    # GET request - mostrar formulario
+    context = {
+        'interfaces_disponibles': obtener_interfaces_disponibles(),
+        'duraciones_captura': [
+            (60, '1 minuto'),
+            (300, '5 minutos'), 
+            (600, '10 minutos'),
+            (1800, '30 minutos'),
+            (3600, '1 hora')
+        ],
+        'capturas_recientes': CaptureSession.objects.all()[:10]
+    }
+    
+    return render(request, 'traffic/capture_management.html', context)
+
+
+@operator_required 
+def csv_processing_view(request):
+    """Vista de procesamiento de CSV"""
+    from .utils import procesar_csv_web
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'process_all':
+            resultado = procesar_csv_web()
+            
+            if resultado['success']:
+                return JsonResponse({
+                    'success': True,
+                    'message': resultado['message'],
+                    'resultado': resultado['resultado']
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': resultado['error']
+                }, status=400)
+        
+        elif action == 'process_file':
+            archivo = request.POST.get('archivo')
+            if archivo:
+                resultado = procesar_csv_web(csv_file_path=archivo)
+                
+                if resultado['success']:
+                    return JsonResponse({
+                        'success': True,
+                        'message': resultado['message'],
+                        'resultado': resultado['resultado']
+                    })
+                else:
+                    return JsonResponse({
+                        'success': False,
+                        'error': resultado['error']
+                    }, status=400)
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Archivo no especificado'
+                }, status=400)
+    
+    # GET request - mostrar interfaz
+    import os
+    csv_dir = '/media/csv_files/'
+    archivos_csv = []
+    
+    if os.path.exists(csv_dir):
+        archivos_csv = [
+            f for f in os.listdir(csv_dir) 
+            if f.endswith('.csv') and os.path.isfile(os.path.join(csv_dir, f))
+        ]
+    
+    context = {
+        'archivos_csv': archivos_csv,
+        'total_sin_procesar': TraficoRed.objects.filter(procesado=False).count(),
+        'total_procesados': TraficoRed.objects.filter(procesado=True).count()
+    }
+    
+    return render(request, 'traffic/csv_processing.html', context)
+
+
+@analyst_required
+def ml_prediction_view(request):
+    """Vista de predicciones ML"""
+    from .utils import ejecutar_predicciones_web, entrenar_modelo_web
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'predict':
+            batch_size = int(request.POST.get('batch_size', 1000))
+            
+            resultado = ejecutar_predicciones_web(batch_size=batch_size)
+            
+            if resultado['success']:
+                return JsonResponse({
+                    'success': True,
+                    'message': resultado['message'],
+                    'registros_procesados': resultado['registros_procesados']
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': resultado['error']
+                }, status=400)
+        
+        elif action == 'train_model':
+            resultado = entrenar_modelo_web()
+            
+            if resultado['success']:
+                return JsonResponse({
+                    'success': True,
+                    'message': resultado['message']
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': resultado['error']
+                }, status=400)
+    
+    # GET request - mostrar interfaz
+    total_sin_procesar = TraficoRed.objects.filter(procesado=False).count()
+    total_anomalias = TraficoRed.objects.filter(label='ANOMALO').count()
+    total_normales = TraficoRed.objects.filter(label='NORMAL').count()
+    total_clasificados = total_anomalias + total_normales
+    
+    context = {
+        'total_sin_procesar': total_sin_procesar,
+        'total_anomalias': total_anomalias,
+        'total_normales': total_normales,
+        'total_clasificados': total_clasificados,
+        'porcentaje_anomalias': (
+            (total_anomalias / total_clasificados * 100) 
+            if total_clasificados > 0 else 0
+        ),
+        'batch_sizes': [100, 500, 1000, 2000, 5000]
+    }
+    
+    return render(request, 'traffic/ml_prediction.html', context)

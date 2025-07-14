@@ -22,7 +22,7 @@ urlpatterns = [
     
     # Apps URLs
     path('dashboard/', include('apps.dashboard.urls')),
-    path('api/traffic/', include('apps.traffic.urls')),
+    path('traffic/', include('apps.traffic.urls')),  # Updated: moved from api/traffic/ to traffic/
     path('api/prediction/', include('apps.prediction.urls')),
     path('core/', include('apps.core.urls')),
     

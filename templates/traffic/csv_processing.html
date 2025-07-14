@@ -1,0 +1,405 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Procesamiento de CSV - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.processing-card {
+    border-left: 4px solid #ffc107;
+}
+.file-item {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s ease;
+}
+.file-item:hover {
+    background: #e9ecef;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+.stat-card {
+    text-align: center;
+    padding: 1rem;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-file-csv"></i> Procesamiento de CSV</h1>
+    <div>
+        <a href="{% url 'traffic:pipeline' %}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al Pipeline
+        </a>
+    </div>
+</div>
+
+<!-- Resumen de estado -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card processing-card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Estado del Procesamiento</h5>
+            </div>
+            <div class="card-body">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="h3 text-warning">{{ archivos_csv|length }}</div>
+                        <small class="text-muted">Archivos CSV Pendientes</small>
+                    </div>
+                    <div class="stat-card">
+                        <div class="h3 text-danger">{{ total_sin_procesar }}</div>
+                        <small class="text-muted">Registros Sin Procesar</small>
+                    </div>
+                    <div class="stat-card">
+                        <div class="h3 text-success">{{ total_procesados }}</div>
+                        <small class="text-muted">Registros Procesados</small>
+                    </div>
+                    <div class="stat-card">
+                        <div class="h3 text-primary">
+                            {% if total_procesados > 0 %}
+                                {{ total_procesados|add:total_sin_procesar }}
+                            {% else %}
+                                {{ total_sin_procesar }}
+                            {% endif %}
+                        </div>
+                        <small class="text-muted">Total de Registros</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones de procesamiento -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-play-circle"></i> Procesamiento Masivo</h6>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">
+                    Procesa todos los archivos CSV pendientes de una vez.
+                    Esta operación puede tomar varios minutos dependiendo del tamaño de los archivos.
+                </p>
+                
+                <div class="d-grid">
+                    <button class="btn btn-warning btn-lg" onclick="procesarTodos()" id="processAllBtn">
+                        <i class="fas fa-cogs"></i> Procesar Todos los CSV
+                    </button>
+                </div>
+                
+                <div id="processAllProgress" class="mt-3" style="display: none;">
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" style="width: 100%"></div>
+                    </div>
+                    <small class="text-muted">Procesando archivos...</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-info-circle"></i> Información</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <strong>Directorio de trabajo:</strong>
+                    <code>/media/csv_files/</code>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Formatos soportados:</strong>
+                    <span class="badge bg-secondary">CSV</span>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Proceso:</strong>
+                    <ol class="small text-muted">
+                        <li>Lectura y validación del CSV</li>
+                        <li>Limpieza y normalización de datos</li>
+                        <li>Inserción en base de datos</li>
+                        <li>Archivo movido a procesados</li>
+                    </ol>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="fas fa-lightbulb"></i>
+                    <strong>Tip:</strong> Los archivos se procesan automáticamente cuando se completa una captura.
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lista de archivos CSV -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-folder-open"></i> Archivos CSV Pendientes</h5>
+            </div>
+            <div class="card-body">
+                {% if archivos_csv %}
+                    <div id="filesList">
+                        {% for archivo in archivos_csv %}
+                            <div class="file-item" data-filename="{{ archivo }}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-file-csv fa-2x text-success me-3"></i>
+                                        <div>
+                                            <h6 class="mb-1">{{ archivo }}</h6>
+                                            <small class="text-muted">
+                                                <i class="fas fa-calendar"></i> 
+                                                Archivo CSV disponible para procesamiento
+                                            </small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-outline-warning btn-sm" 
+                                                onclick="procesarArchivo('{{ archivo }}')">
+                                            <i class="fas fa-play"></i> Procesar
+                                        </button>
+                                        <button class="btn btn-outline-secondary btn-sm" disabled>
+                                            <i class="fas fa-eye"></i> Ver
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Progress bar para procesamiento individual -->
+                                <div class="progress mt-2" style="display: none;" id="progress-{{ archivo|slugify }}">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         role="progressbar" style="width: 100%"></div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                        <h4 class="text-success">¡Todos los archivos están procesados!</h4>
+                        <p class="text-muted">No hay archivos CSV pendientes de procesamiento.</p>
+                        <p class="text-muted">
+                            Los nuevos archivos aparecerán aquí cuando se complete una captura de tráfico.
+                        </p>
+                        
+                        <div class="mt-4">
+                            <a href="{% url 'traffic:capture_management' %}" class="btn btn-primary">
+                                <i class="fas fa-play"></i> Iniciar Nueva Captura
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de resultados -->
+<div class="modal fade" id="resultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resultados del Procesamiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="resultsContent">
+                    <!-- El contenido se llenará dinámicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary" onclick="location.reload()">
+                    <i class="fas fa-sync-alt"></i> Actualizar Página
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function procesarTodos() {
+    const $btn = $('#processAllBtn');
+    const originalText = $btn.html();
+    
+    // Deshabilitar botón y mostrar progreso
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Procesando...');
+    $('#processAllProgress').show();
+    
+    $.ajax({
+        url: '{% url "traffic:csv_processing" %}',
+        method: 'POST',
+        data: {
+            'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val(),
+            'action': 'process_all'
+        },
+        success: function(response) {
+            if (response.success) {
+                mostrarResultados('Procesamiento Masivo Completado', response.resultado);
+                
+                // Recargar página después de mostrar resultados
+                setTimeout(function() {
+                    location.reload();
+                }, 3000);
+            } else {
+                showAlert('danger', response.error || 'Error en procesamiento');
+            }
+        },
+        error: function(xhr) {
+            let errorMsg = 'Error de conexión';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg = xhr.responseJSON.error;
+            }
+            showAlert('danger', errorMsg);
+        },
+        complete: function() {
+            $btn.prop('disabled', false).html(originalText);
+            $('#processAllProgress').hide();
+        }
+    });
+}
+
+function procesarArchivo(archivo) {
+    const $fileItem = $(`div[data-filename="${archivo}"]`);
+    const $progressBar = $(`#progress-${archivo.replace(/[^a-zA-Z0-9]/g, '')}`);
+    
+    // Mostrar progreso
+    $progressBar.show();
+    $fileItem.find('button').prop('disabled', true);
+    
+    $.ajax({
+        url: '{% url "traffic:csv_processing" %}',
+        method: 'POST',
+        data: {
+            'csrfmiddlewaretoken': $('[name=csrfmiddlewaretoken]').val(),
+            'action': 'process_file',
+            'archivo': archivo
+        },
+        success: function(response) {
+            if (response.success) {
+                mostrarResultados(`Archivo ${archivo} Procesado`, response.resultado);
+                
+                // Remover archivo de la lista
+                setTimeout(function() {
+                    $fileItem.fadeOut(500, function() {
+                        $(this).remove();
+                        
+                        // Si no quedan archivos, recargar página
+                        if ($('#filesList .file-item').length === 0) {
+                            location.reload();
+                        }
+                    });
+                }, 2000);
+            } else {
+                showAlert('danger', response.error || 'Error procesando archivo');
+                $fileItem.find('button').prop('disabled', false);
+                $progressBar.hide();
+            }
+        },
+        error: function(xhr) {
+            let errorMsg = 'Error de conexión';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg = xhr.responseJSON.error;
+            }
+            showAlert('danger', errorMsg);
+            $fileItem.find('button').prop('disabled', false);
+            $progressBar.hide();
+        }
+    });
+}
+
+function mostrarResultados(titulo, resultado) {
+    const html = `
+        <div class="alert alert-success">
+            <h6><i class="fas fa-check-circle"></i> ${titulo}</h6>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-success">${resultado.procesados || 0}</h4>
+                        <small class="text-muted">Archivos Procesados</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-primary">${resultado.registros_totales || 0}</h4>
+                        <small class="text-muted">Registros Insertados</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h4 class="text-danger">${resultado.errores || 0}</h4>
+                        <small class="text-muted">Errores</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-3">
+            <p class="text-muted">
+                <i class="fas fa-info-circle"></i>
+                Los registros están ahora disponibles para análisis y predicción ML.
+            </p>
+        </div>
+    `;
+    
+    $('#resultsContent').html(html);
+    $('#resultsModal').modal('show');
+}
+
+function showAlert(type, message) {
+    const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    $('main .container-fluid').prepend(alertHtml);
+    
+    setTimeout(function() {
+        $('.alert').fadeOut();
+    }, 5000);
+}
+
+// Auto-actualizar cada 30 segundos
+setInterval(function() {
+    // Opcional: actualizar solo contadores
+    console.log('Verificando nuevos archivos...');
+}, 30000);
+</script>
+
+<!-- CSRF Token para AJAX -->
+<script>
+// Añadir CSRF token a todas las requests AJAX
+$(document).ready(function() {
+    // Crear un input hidden con el token CSRF
+    if (!$('[name=csrfmiddlewaretoken]').length) {
+        $('body').append('<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">');
+    }
+});
+</script>
+{% endblock %}

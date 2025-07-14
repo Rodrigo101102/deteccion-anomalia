@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Pipeline de Tráfico - {{ block.super }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.pipeline-card {
+    border-left: 4px solid #007bff;
+    transition: all 0.3s ease;
+}
+.pipeline-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.status-badge {
+    font-size: 0.9rem;
+    padding: 0.3rem 0.8rem;
+}
+.metric-value {
+    font-size: 2rem;
+    font-weight: bold;
+}
+.metric-label {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-network-wired"></i> Pipeline de Tráfico</h1>
+    <div>
+        <button class="btn btn-outline-primary" onclick="actualizarEstado()">
+            <i class="fas fa-sync-alt"></i> Actualizar
+        </button>
+    </div>
+</div>
+
+<!-- Resumen del estado del pipeline -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card pipeline-card">
+            <div class="card-body text-center">
+                <h5 class="card-title">
+                    <i class="fas fa-play-circle text-success"></i> Captura
+                </h5>
+                <span class="badge status-badge 
+                    {% if estado_pipeline.captura.estado == 'ACTIVA' %}bg-success{% else %}bg-secondary{% endif %}">
+                    {{ estado_pipeline.captura.estado }}
+                </span>
+                <div class="mt-2">
+                    <div class="metric-value text-success">{{ estado_pipeline.captura.completadas }}</div>
+                    <div class="metric-label">Completadas</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card pipeline-card">
+            <div class="card-body text-center">
+                <h5 class="card-title">
+                    <i class="fas fa-cogs text-warning"></i> Procesamiento
+                </h5>
+                <span class="badge status-badge 
+                    {% if estado_pipeline.procesamiento.estado == 'COMPLETADO' %}bg-success{% else %}bg-warning{% endif %}">
+                    {{ estado_pipeline.procesamiento.estado }}
+                </span>
+                <div class="mt-2">
+                    <div class="metric-value text-warning">{{ estado_pipeline.procesamiento.sin_procesar }}</div>
+                    <div class="metric-label">Pendientes</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card pipeline-card">
+            <div class="card-body text-center">
+                <h5 class="card-title">
+                    <i class="fas fa-brain text-primary"></i> Predicción ML
+                </h5>
+                <span class="badge status-badge bg-primary">
+                    {{ estado_pipeline.prediccion.porcentaje_anomalias|floatformat:1 }}% Anomalías
+                </span>
+                <div class="mt-2">
+                    <div class="metric-value text-danger">{{ estado_pipeline.prediccion.anomalias }}</div>
+                    <div class="metric-label">Anomalías Detectadas</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones rápidas -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-bolt"></i> Acciones Rápidas</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <a href="{% url 'traffic:capture_management' %}" class="btn btn-outline-success btn-lg w-100 mb-2">
+                            <i class="fas fa-play"></i><br>
+                            <small>Gestionar Capturas</small>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{% url 'traffic:csv_processing' %}" class="btn btn-outline-warning btn-lg w-100 mb-2">
+                            <i class="fas fa-file-csv"></i><br>
+                            <small>Procesar CSV</small>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="{% url 'traffic:ml_prediction' %}" class="btn btn-outline-primary btn-lg w-100 mb-2">
+                            <i class="fas fa-brain"></i><br>
+                            <small>Predicciones ML</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detalles por etapa -->
+<div class="row">
+    <!-- Captura -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h6 class="mb-0"><i class="fas fa-play-circle"></i> Estado de Captura</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">Activas</small>
+                        <div class="h4 text-success">{{ estado_pipeline.captura.activas }}</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Fallidas</small>
+                        <div class="h4 text-danger">{{ estado_pipeline.captura.fallidas }}</div>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <a href="{% url 'traffic:capture_management' %}" class="btn btn-success btn-sm">
+                        <i class="fas fa-play"></i> Iniciar Captura
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Procesamiento -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="fas fa-cogs"></i> Estado de Procesamiento</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">CSV Pendientes</small>
+                        <div class="h4 text-warning">{{ estado_pipeline.procesamiento.archivos_csv_pendientes }}</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Procesados</small>
+                        <div class="h4 text-success">{{ estado_pipeline.procesamiento.procesados }}</div>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <a href="{% url 'traffic:csv_processing' %}" class="btn btn-warning btn-sm">
+                        <i class="fas fa-file-csv"></i> Procesar CSV
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Predicción -->
+    <div class="col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h6 class="mb-0"><i class="fas fa-brain"></i> Estado de Predicción</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">Total Clasificados</small>
+                        <div class="h4 text-primary">{{ estado_pipeline.prediccion.total_clasificados }}</div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Normales</small>
+                        <div class="h4 text-success">{{ estado_pipeline.prediccion.normales }}</div>
+                    </div>
+                </div>
+                <hr>
+                <div class="text-center">
+                    <a href="{% url 'traffic:ml_prediction' %}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-brain"></i> Ejecutar ML
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Navegación adicional -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="fas fa-link"></i> Enlaces Útiles</h6>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:list' %}" class="btn btn-outline-info w-100 mb-2">
+                            <i class="fas fa-list"></i> Ver Todo el Tráfico
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:analytics' %}" class="btn btn-outline-info w-100 mb-2">
+                            <i class="fas fa-chart-line"></i> Analíticas
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:capture_sessions' %}" class="btn btn-outline-info w-100 mb-2">
+                            <i class="fas fa-history"></i> Historial Capturas
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="{% url 'traffic:export' %}" class="btn btn-outline-info w-100 mb-2">
+                            <i class="fas fa-download"></i> Exportar Datos
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function actualizarEstado() {
+    // Recargar la página para obtener el estado más reciente
+    location.reload();
+}
+
+// Auto-actualizar cada 30 segundos
+setInterval(function() {
+    // Opcional: actualizar solo partes específicas via AJAX
+    console.log('Auto-actualizando estado...');
+}, 30000);
+</script>
+{% endblock %}

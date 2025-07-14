@@ -13,13 +13,21 @@ urlpatterns = [
     path('<int:pk>/', views.TrafficDetailView.as_view(), name='detail'),
     path('analytics/', views.traffic_analytics_view, name='analytics'),
     
+    # Pipeline completo
+    path('pipeline/', views.traffic_pipeline_view, name='pipeline'),
+    
     # Gestión de capturas
+    path('capture/', views.capture_management_view, name='capture_management'),
     path('capture/start/', views.start_capture_view, name='start_capture'),
     path('capture/stop/', views.stop_capture_view, name='stop_capture'),
     path('capture/sessions/', views.CaptureSessionListView.as_view(), name='capture_sessions'),
     
-    # Procesamiento
+    # Procesamiento de CSV
+    path('processing/', views.csv_processing_view, name='csv_processing'),
     path('process/csv/', views.process_pending_csv_view, name='process_csv'),
+    
+    # Predicciones ML
+    path('prediction/', views.ml_prediction_view, name='ml_prediction'),
     
     # APIs REST
     path('api/list/', views.traffic_api_list, name='api_list'),
