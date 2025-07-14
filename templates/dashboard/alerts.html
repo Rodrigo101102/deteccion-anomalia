@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}Alertas - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-exclamation-triangle"></i> Alertas del Sistema</h5>
+            </div>
+            <div class="card-body">
+                {% if unresolved_alerts %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>{{ unresolved_alerts.count }} alerta(s) sin resolver</strong>
+                    </div>
+                    
+                    {% for alert in unresolved_alerts %}
+                    <div class="card mb-3 border-warning">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="card-title text-warning">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        {{ alert.title }}
+                                    </h6>
+                                    <p class="card-text">{{ alert.message }}</p>
+                                    <small class="text-muted">
+                                        <i class="fas fa-clock"></i>
+                                        {{ alert.created_at|date:"d/m/Y H:i" }}
+                                    </small>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-success" 
+                                            onclick="resolveAlert({{ alert.id }})">
+                                        <i class="fas fa-check"></i> Resolver
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i>
+                        <strong>¡Excelente!</strong> No hay alertas pendientes en este momento.
+                    </div>
+                {% endif %}
+
+                <h6 class="mt-4">Alertas Recientes</h6>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Mensaje</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in recent_alerts %}
+                            <tr>
+                                <td>{{ alert.created_at|date:"d/m/Y H:i" }}</td>
+                                <td>
+                                    {% if alert.severity == 'critical' %}
+                                        <span class="badge bg-danger">Crítico</span>
+                                    {% elif alert.severity == 'warning' %}
+                                        <span class="badge bg-warning">Advertencia</span>
+                                    {% else %}
+                                        <span class="badge bg-info">Info</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ alert.message }}</td>
+                                <td>
+                                    {% if alert.is_resolved %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check"></i> Resuelto
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-clock"></i> Pendiente
+                                        </span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">
+                                    No hay alertas recientes
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function resolveAlert(alertId) {
+    if (confirm('¿Está seguro de que desea marcar esta alerta como resuelta?')) {
+        // Here you would typically make an AJAX call to resolve the alert
+        showNotification('Alerta marcada como resuelta', 'success');
+        location.reload();
+    }
+}
+</script>
+{% endblock %}

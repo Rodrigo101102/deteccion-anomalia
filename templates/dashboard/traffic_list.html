@@ -1,0 +1,225 @@
+{% extends 'base.html' %}
+
+{% block title %}Lista de Tráfico - {{ block.super }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-network-wired"></i> Tráfico de Red</h5>
+                <div>
+                    <button class="btn btn-sm btn-primary" onclick="refreshDashboard()">
+                        <i class="fas fa-sync-alt"></i> Actualizar
+                    </button>
+                    <button class="btn btn-sm btn-success" onclick="exportData('csv')">
+                        <i class="fas fa-download"></i> Exportar
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Filtros -->
+                <form method="get" class="mb-3 filter-form">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <select name="label" class="form-select">
+                                <option value="all" {% if current_filters.label == 'all' %}selected{% endif %}>
+                                    Todos los tipos
+                                </option>
+                                <option value="NORMAL" {% if current_filters.label == 'NORMAL' %}selected{% endif %}>
+                                    Normal
+                                </option>
+                                <option value="ANOMALO" {% if current_filters.label == 'ANOMALO' %}selected{% endif %}>
+                                    Anómalo
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="date" class="form-select">
+                                <option value="today" {% if current_filters.date == 'today' %}selected{% endif %}>
+                                    Hoy
+                                </option>
+                                <option value="week" {% if current_filters.date == 'week' %}selected{% endif %}>
+                                    Última semana
+                                </option>
+                                <option value="all" {% if current_filters.date == 'all' %}selected{% endif %}>
+                                    Todo el periodo
+                                </option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter"></i> Filtrar
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="clearFilters()">
+                                <i class="fas fa-times"></i> Limpiar
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Tabla de tráfico -->
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>IP Origen</th>
+                                <th>Puerto Origen</th>
+                                <th>IP Destino</th>
+                                <th>Puerto Destino</th>
+                                <th>Protocolo</th>
+                                <th>Tamaño</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for traffic in traffic_data %}
+                            <tr>
+                                <td>{{ traffic.fecha_captura|date:"d/m/Y H:i" }}</td>
+                                <td>{{ traffic.src_ip }}</td>
+                                <td>{{ traffic.src_port }}</td>
+                                <td>{{ traffic.dst_ip }}</td>
+                                <td>{{ traffic.dst_port }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ traffic.protocol }}</span>
+                                </td>
+                                <td>{{ traffic.packet_size }} bytes</td>
+                                <td>
+                                    {% if traffic.label == 'ANOMALO' %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-exclamation-triangle"></i> Anómalo
+                                        </span>
+                                    {% elif traffic.label == 'NORMAL' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check"></i> Normal
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-clock"></i> Sin procesar
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="showTrafficDetail({{ traffic.id }})"
+                                            data-bs-toggle="tooltip" 
+                                            title="Ver detalles">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="9" class="text-center">
+                                    <div class="py-4">
+                                        <i class="fas fa-info-circle text-muted fa-2x"></i>
+                                        <p class="mt-2 text-muted">No se encontraron registros de tráfico</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                {% if traffic_data.has_other_pages %}
+                <nav aria-label="Paginación de tráfico">
+                    <ul class="pagination justify-content-center">
+                        {% if traffic_data.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ traffic_data.previous_page_number }}">
+                                    <i class="fas fa-chevron-left"></i> Anterior
+                                </a>
+                            </li>
+                        {% endif %}
+                        
+                        {% for num in traffic_data.paginator.page_range %}
+                            {% if traffic_data.number == num %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ num }}</span>
+                                </li>
+                            {% elif num > traffic_data.number|add:'-3' and num < traffic_data.number|add:'3' %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if traffic_data.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ traffic_data.next_page_number }}">
+                                    Siguiente <i class="fas fa-chevron-right"></i>
+                                </a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para detalles de tráfico -->
+<div class="modal fade" id="trafficDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle"></i> Detalles del Tráfico
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="trafficDetailContent">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showTrafficDetail(trafficId) {
+    $('#trafficDetailModal').modal('show');
+    
+    // Here you would typically fetch details via AJAX
+    // For now, showing a placeholder
+    $('#trafficDetailContent').html(`
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Información de Origen</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>IP:</strong></td><td>192.168.1.100</td></tr>
+                    <tr><td><strong>Puerto:</strong></td><td>8080</td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>Información de Destino</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>IP:</strong></td><td>192.168.1.1</td></tr>
+                    <tr><td><strong>Puerto:</strong></td><td>443</td></tr>
+                </table>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <h6>Métricas de Flujo</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Duración:</strong></td><td>2.5 segundos</td></tr>
+                    <tr><td><strong>Bytes por segundo:</strong></td><td>15,240</td></tr>
+                    <tr><td><strong>Paquetes por segundo:</strong></td><td>120</td></tr>
+                </table>
+            </div>
+        </div>
+    `);
+}
+</script>
+{% endblock %}
